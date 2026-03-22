@@ -1,0 +1,59 @@
+[project]
+name = "bvbb"
+version = "0.0.0"
+description = "BVBB Badminton League Dashboard — scrape and display league data from nuLiga"
+requires-python = ">=3.12"
+license = "AGPL-3.0-only"
+dependencies = [
+    "httpx>=0.28",
+    "beautifulsoup4>=4.13",
+    "lxml>=5.3",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.7",
+    "sqlmodel>=0.0.22",
+    "streamlit>=1.42",
+    "tqdm>=4.66",
+]
+
+[dependency-groups]
+dev = [{ include-group = "test" }, { include-group = "lint" }, { include-group = "types" }]
+test = ["pytest>=8.3", "pytest-asyncio>=0.25", "pytest-cov>=6.0", "respx>=0.22"]
+lint = ["prek>=0.3.6", "ruff>=0.9"]
+types = ["ty>=0.0.20"]
+
+[project.scripts]
+bvbb-crawl = "bvbb.crawl:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/bvbb"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+src = ["src", "tests"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF", "PIE", "PTH", "TC", "TID", "PGH"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR2004", "D101", "D102", "D103"]
+
+[tool.ruff.lint.flake8-type-checking]
+runtime-evaluated-base-classes = ["pydantic.BaseModel", "sqlmodel.SQLModel"]
+
+[tool.ty.environment]
+extra-paths = ["tests"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+addopts = "--cov=bvbb --cov-report=term-missing"
