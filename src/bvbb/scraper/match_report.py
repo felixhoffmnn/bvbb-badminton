@@ -153,12 +153,10 @@ def _parse_players(cell) -> tuple[list[str], list[int], list[int]]:
     club_ids: list[int] = []
     for a in cell.find_all("a", href=True):
         name = a.get_text(strip=True)
-        if name:
-            names.append(name)
         person_id = extract_int_param(a["href"], "person")
-        if person_id is not None:
-            person_ids.append(person_id)
         club_id = extract_int_param(a["href"], "club")
-        if club_id is not None:
+        if name and person_id is not None and club_id is not None:
+            names.append(name)
+            person_ids.append(person_id)
             club_ids.append(club_id)
     return names, person_ids, club_ids

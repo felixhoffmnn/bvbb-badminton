@@ -25,7 +25,12 @@ def find_table_by_header(soup: BeautifulSoup | Tag, header: str) -> Tag | None:
 def parse_german_date(text: str) -> date | None:
     """Parse 'DD.MM.YYYY' anywhere in text."""
     m = re.search(r"(\d{2})\.(\d{2})\.(\d{4})", text)
-    return date(int(m.group(3)), int(m.group(2)), int(m.group(1))) if m else None
+    if not m:
+        return None
+    try:
+        return date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+    except ValueError:
+        return None
 
 
 def safe_int(text: str) -> int | None:

@@ -48,7 +48,9 @@ async def _select_championship() -> str:
             choice = int(input(f"Select championship (1-{len(championships)}): "))
             if 1 <= choice <= len(championships):
                 return championships[choice - 1][0]
-        except (ValueError, EOFError):
+        except EOFError:
+            raise SystemExit("No interactive input available. Use --championship flag.") from None
+        except ValueError:
             pass
         print(f"Please enter a number between 1 and {len(championships)}.")
 
@@ -69,16 +71,23 @@ async def crawl(championship_code: str, db_path: Path) -> None:
 
         async def _scrape_group(group):
             gid = group.group_id
-            logger.info("crawling standings for group %d (%s)", gid, group.name)
-            standings = await scrape_standings(client, championship_code, gid)
-            logger.info("crawling schedule for group %d (%s)", gid, group.name)
-            schedule = await scrape_schedule(client, championship_code, gid)
-            bar_groups.update(1)
-            return gid, standings, schedule
+            try:
+                logger.info("crawling standings for group %d (%s)", gid, group.name)
+                standings = await scrape_standings(client, championship_code, gid)
+                logger.info("crawling schedule for group %d (%s)", gid, group.name)
+                schedule = await scrape_schedule(client, championship_code, gid)
+                bar_groups.update(1)
+                return gid, standings, schedule
+            except Exception:
+                logger.exception("failed to scrape group %d (%s)", gid, group.name)
+                bar_groups.update(1)
+                return None
 
         bar_groups = tqdm(total=len(all_groups), desc="Groups")
         group_results = await asyncio.gather(*[_scrape_group(g) for g in all_groups])
         bar_groups.close()
+        group_results = [r for r in group_results if r is not None]
+        logger.info("crawl groups: %d of %d succeeded", len(group_results), len(all_groups))
 
         all_played: list[tuple[int, int]] = []  # (group_id, meeting_id)
         for gid, standings, schedule in group_results:
@@ -92,14 +101,21 @@ async def crawl(championship_code: str, db_path: Path) -> None:
         logger.info("crawling %d match reports", len(all_played))
 
         async def _scrape_match(gid, mid):
-            logger.info("crawling match report meeting=%d", mid)
-            report = await scrape_match_report(client, championship_code, gid, mid)
-            bar_matches.update(1)
-            return gid, report
+            try:
+                logger.info("crawling match report meeting=%d", mid)
+                report = await scrape_match_report(client, championship_code, gid, mid)
+                bar_matches.update(1)
+                return gid, report
+            except Exception:
+                logger.exception("failed to scrape match report meeting=%d", mid)
+                bar_matches.update(1)
+                return None
 
         bar_matches = tqdm(total=len(all_played), desc="Matches")
         match_results = await asyncio.gather(*[_scrape_match(gid, mid) for gid, mid in all_played])
         bar_matches.close()
+        match_results = [r for r in match_results if r is not None]
+        logger.info("crawl matches: %d of %d succeeded", len(match_results), len(all_played))
 
         unique_players: set[tuple[int, int]] = set()  # (person_id, club_id)
         unique_clubs: set[int] = set()
@@ -117,14 +133,22 @@ async def crawl(championship_code: str, db_path: Path) -> None:
         logger.info("crawling %d unique players", len(unique_players))
 
         async def _scrape_player_wrap(pid, cid):
-            logger.info("crawling player person=%d club=%d", pid, cid)
-            player = await scrape_player(client, pid, cid, season=season)
-            bar_players.update(1)
-            return player
+            try:
+                logger.info("crawling player person=%d club=%d", pid, cid)
+                player = await scrape_player(client, pid, cid, season=season)
+                bar_players.update(1)
+                return player
+            except Exception:
+                logger.exception("failed to scrape player person=%d club=%d", pid, cid)
+                bar_players.update(1)
+                return None
 
+        sorted_players = sorted(unique_players)
         bar_players = tqdm(total=len(unique_players), desc="Players")
-        players = await asyncio.gather(*[_scrape_player_wrap(pid, cid) for pid, cid in sorted(unique_players)])
+        players = await asyncio.gather(*[_scrape_player_wrap(pid, cid) for pid, cid in sorted_players])
         bar_players.close()
+        players = [p for p in players if p is not None]
+        logger.info("crawl players: %d of %d succeeded", len(players), len(unique_players))
 
         for player in players:
             save_player(session, player, championship_code)
@@ -133,14 +157,22 @@ async def crawl(championship_code: str, db_path: Path) -> None:
         logger.info("crawling %d unique clubs", len(unique_clubs))
 
         async def _scrape_club_wrap(cid):
-            logger.info("crawling club %d", cid)
-            club = await scrape_club(client, cid)
-            bar_clubs.update(1)
-            return club
+            try:
+                logger.info("crawling club %d", cid)
+                club = await scrape_club(client, cid)
+                bar_clubs.update(1)
+                return club
+            except Exception:
+                logger.exception("failed to scrape club %d", cid)
+                bar_clubs.update(1)
+                return None
 
+        sorted_clubs = sorted(unique_clubs)
         bar_clubs = tqdm(total=len(unique_clubs), desc="Clubs")
-        clubs = await asyncio.gather(*[_scrape_club_wrap(cid) for cid in sorted(unique_clubs)])
+        clubs = await asyncio.gather(*[_scrape_club_wrap(cid) for cid in sorted_clubs])
         bar_clubs.close()
+        clubs = [c for c in clubs if c is not None]
+        logger.info("crawl clubs: %d of %d succeeded", len(clubs), len(unique_clubs))
 
         for club in clubs:
             save_club(session, club, championship_code)

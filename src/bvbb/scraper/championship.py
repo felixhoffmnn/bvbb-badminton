@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 import httpx
 
@@ -11,14 +11,16 @@ from bvbb.scraper.parser import extract_int_param, make_soup
 logger = logging.getLogger(__name__)
 
 
-async def discover_championships(client: RateLimitedClient) -> list[tuple[str, str]]:
+async def discover_championships(
+    client: RateLimitedClient, *, reference_date: date | None = None
+) -> list[tuple[str, str]]:
     """Discover available BBMM championships by probing nuLiga.
 
     Returns ``(code, display_name)`` tuples sorted newest-first.
     """
-    now = datetime.now()
+    ref = reference_date or datetime.now().date()
     # Season starts in autumn: if we're in Aug+ we're in season YY/(YY+1)
-    current_start = now.year if now.month >= 8 else now.year - 1
+    current_start = ref.year if ref.month >= 8 else ref.year - 1
 
     codes: list[str] = []
     for start_year in range(current_start, current_start - 15, -1):
@@ -29,7 +31,12 @@ async def discover_championships(client: RateLimitedClient) -> list[tuple[str, s
     async def _probe(code: str) -> tuple[str, str] | None:
         try:
             html = await client.get("/leaguePage", params={"championship": code})
-        except httpx.HTTPStatusError:
+        except httpx.HTTPStatusError as exc:
+            if exc.response.status_code != 404:
+                logger.warning("HTTP %d probing championship %s", exc.response.status_code, code)
+            return None
+        except httpx.RequestError as exc:
+            logger.warning("network error probing %s: %s", code, exc)
             return None
         soup = make_soup(html)
         h1 = soup.find("h1")

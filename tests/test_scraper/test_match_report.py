@@ -1,10 +1,10 @@
 import pytest
 import respx
 from httpx import Response
-from tests.conftest import load_fixture
 
 from bvbb.scraper.client import RateLimitedClient
 from bvbb.scraper.match_report import scrape_match_report
+from conftest import load_fixture
 
 
 @pytest.mark.asyncio

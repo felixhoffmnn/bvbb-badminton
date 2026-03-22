@@ -1,11 +1,13 @@
+from datetime import date
+
 import pytest
 import respx
 from httpx import Response
-from tests.conftest import load_fixture
 
 from bvbb.config import derive_season
 from bvbb.scraper.championship import discover_championships, scrape_championship
 from bvbb.scraper.client import RateLimitedClient
+from conftest import load_fixture
 
 
 @pytest.fixture
@@ -59,7 +61,7 @@ async def test_discover_championships(html):
         client = RateLimitedClient()
         client._delay = 0
 
-        results = await discover_championships(client)
+        results = await discover_championships(client, reference_date=date(2025, 10, 1))
 
         assert len(results) == 1
         assert results[0] == ("BBMM 25/26", "Mannschaftsmeisterschaft 2025/26")
@@ -77,7 +79,7 @@ async def test_discover_championships_http_error():
         client = RateLimitedClient()
         client._delay = 0
 
-        results = await discover_championships(client)
+        results = await discover_championships(client, reference_date=date(2025, 10, 1))
 
         assert results == []
 
